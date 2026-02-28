@@ -1,21 +1,65 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>小麥日曬｜營運儀表板</title>
-<link rel="stylesheet" href="style.css"/>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>小麥日曬｜營運儀表板</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Excel reader -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
-<h1>小麥日曬｜營運儀表板</h1>
-<div>
-<input id="email" placeholder="Email"/>
-<input id="password" type="password" placeholder="Password"/>
-<button onclick="signup()">註冊</button>
-<button onclick="login()">登入</button>
-</div>
-<div id="msg"></div>
-<script src="app.js"></script>
+  <h1>小麥日曬｜營運儀表板</h1>
+
+  <!-- 登入區 -->
+  <div id="auth">
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="密碼">
+    <button id="login">登入</button>
+    <button id="signup">註冊</button>
+    <p id="authMsg"></p>
+  </div>
+
+  <!-- 主系統 -->
+  <div id="app" style="display:none;">
+    <p>登入成功</p>
+
+    <hr>
+
+    <h3>匯入預約報表</h3>
+
+    <label>起始日期</label>
+    <input type="date" id="startDate">
+
+    <label>結束日期</label>
+    <input type="date" id="endDate">
+
+    <label>門市</label>
+    <select id="store">
+      <option value="hsinchu">新竹店</option>
+      <option value="zhubei">竹北店</option>
+    </select>
+
+    <br><br>
+
+    <input type="file" id="fileInput">
+    <button id="importBtn">匯入並統計</button>
+
+    <hr>
+
+    <h3>統計結果</h3>
+    <div id="result"></div>
+
+    <br>
+    <button id="logout">登出</button>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
