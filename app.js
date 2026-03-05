@@ -70,11 +70,6 @@ function excelDateToISO(v) {
   return null;
 }
 
-function money(n) {
-  const v = Math.round(Number(n || 0));
-  return v.toLocaleString("zh-TW");
-}
-
 // ====== 匯入並統計（先做前端統計顯示） ======
 el("importBtn").onclick = async () => {
   const file = el("fileInput").files[0];
