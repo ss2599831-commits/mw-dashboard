@@ -59,13 +59,17 @@ function excelDateToISO(v) {
 
   // Excel serial number
   if (typeof v === "number") {
+    if (!Number.isFinite(v)) return null;
     const epoch = new Date(Date.UTC(1899, 11, 30));
     const d = new Date(epoch.getTime() + v * 86400000);
     return d.toISOString().slice(0, 10);
   }
 
   // Date 物件
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    return v.toISOString().slice(0, 10);
+  }
 
   return null;
 }
