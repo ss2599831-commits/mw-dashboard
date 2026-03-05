@@ -137,10 +137,8 @@ el("importBtn").onclick = async () => {
     if (status !== "完成") { skipped++; continue; }
 
     const storeName = String(r[COL_STORE] || "").trim();
-    const isHsinchu = storeName.includes("新竹");
-    const isZhubei = storeName.includes("竹北");
-    if (store === "hsinchu" && !isHsinchu) { skipped++; continue; }
-    if (store === "zhubei" && !isZhubei) { skipped++; continue; }
+    if (store === "hsinchu" && !storeName.includes("新竹")) { skipped++; continue; }
+    if (store === "zhubei" && !storeName.includes("竹北")) { skipped++; continue; }
 
     const device = String(r[COL_DEVICE] || "").trim() || "未填";
     const pay = String(r[COL_PAY] || "").trim();
