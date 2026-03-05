@@ -75,6 +75,106 @@ function money(n) {
   return v.toLocaleString("zh-TW");
 }
 
+// ====== Excel 解析輔助函式 ======
+async function parseExcelFile(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+  const header = data[0] || [];
+  const body = data.slice(1);
+  return { header, body };
+}
+
+function getColumnIndices(header) {
+  const idxOf = (names, fallbackIdx) => {
+    for (const n of names) {
+      const i = header.findIndex((h) => String(h).trim() === n);
+      if (i >= 0) return i;
+    }
+    return fallbackIdx;
+  };
+
+  return {
+    COL_DATE: idxOf(["日期", "預約日期", "完成時間", "建立時間"], 4),
+    COL_STORE: idxOf(["銷售人員(門市)", "門市", "店別"], 7),
+    COL_DEVICE: idxOf(["設備", "機台", "機台名稱", "服務"], 8),
+    COL_STATUS: idxOf(["訂單狀態", "狀態"], 38),
+    COL_PAY: idxOf(["付款方式", "支付方式"], 16),
+    COL_AMT: idxOf(["實付金額", "金額", "支付金額"], 17)
+  };
+}
+
+function processData(body, indices, start, end, store) {
+  let totalCount = 0;
+  let totalAmt = 0;
+  let storedAmt = 0;
+  let otherAmt = 0;
+  let skipped = 0;
+
+  const agg = new Map();
+
+  for (const r of body) {
+    const iso = excelDateToISO(r[indices.COL_DATE]);
+    if (!iso) { skipped++; continue; }
+    if (iso < start || iso > end) { skipped++; continue; }
+
+    const status = String(r[indices.COL_STATUS] || "").trim();
+    if (status !== "完成") { skipped++; continue; }
+
+    const storeName = String(r[indices.COL_STORE] || "").trim();
+    const isHsinchu = storeName.includes("新竹");
+    const isZhubei = storeName.includes("竹北");
+    if (store === "hsinchu" && !isHsinchu) { skipped++; continue; }
+    if (store === "zhubei" && !isZhubei) { skipped++; continue; }
+
+    const device = String(r[indices.COL_DEVICE] || "").trim() || "未填";
+    const pay = String(r[indices.COL_PAY] || "").trim();
+    const amt = Number(r[indices.COL_AMT]) || 0;
+
+    const group = (pay === "儲值金") ? "儲值金" : "單次/非儲值";
+
+    totalCount += 1;
+    totalAmt += amt;
+    if (group === "儲值金") storedAmt += amt;
+    else otherAmt += amt;
+
+    const key = device + "||" + group;
+    if (!agg.has(key)) agg.set(key, { device, group, count: 0, amt: 0 });
+    const x = agg.get(key);
+    x.count += 1;
+    x.amt += amt;
+  }
+
+  const rows = Array.from(agg.values()).sort((a, b) => {
+    if (a.device !== b.device) return a.device.localeCompare(b.device, "zh-Hant");
+    return a.group.localeCompare(b.group, "zh-Hant");
+  });
+
+  return { totalCount, totalAmt, storedAmt, otherAmt, skipped, rows };
+}
+
+function generateHTML({ totalCount, totalAmt, storedAmt, otherAmt, skipped, rows }) {
+  let html = "";
+  html += `<p>完成筆數：<b>${money(totalCount)}</b>（略過 ${money(skipped)} 筆）</p>`;
+  html += `<p>扣款總額：<b>${money(totalAmt)}</b></p>`;
+  html += `<p>儲值金扣款：<b>${money(storedAmt)}</b>｜單次/非儲值：<b>${money(otherAmt)}</b></p>`;
+  html += `<hr/>`;
+  html += `<table border="1" cellpadding="6" cellspacing="0">
+    <tr><th>設備</th><th>付款群組</th><th>完成筆數</th><th>扣款金額</th></tr>
+    ${rows.map(r => `
+      <tr>
+        <td>${r.device}</td>
+        <td>${r.group}</td>
+        <td>${money(r.count)}</td>
+        <td>${money(r.amt)}</td>
+      </tr>
+    `).join("")}
+  </table>`;
+  return html;
+}
+
 // ====== 匯入並統計（先做前端統計顯示） ======
 el("importBtn").onclick = async () => {
   const file = el("fileInput").files[0];
@@ -93,97 +193,16 @@ el("importBtn").onclick = async () => {
 
   el("result").innerText = "讀取檔案中…";
 
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-
-  const header = data[0] || [];
-  const body = data.slice(1);
-
-  // 依你之前的報表常見欄位找 index（找不到就用備援位置）
-  const idxOf = (names, fallbackIdx) => {
-    for (const n of names) {
-      const i = header.findIndex((h) => String(h).trim() === n);
-      if (i >= 0) return i;
-    }
-    return fallbackIdx;
-  };
-
-  // 備援欄位位置（若你實際欄位不同，我們再微調）
-  const COL_DATE = idxOf(["日期", "預約日期", "完成時間", "建立時間"], 4);
-  const COL_STORE = idxOf(["銷售人員(門市)", "門市", "店別"], 7);
-  const COL_DEVICE = idxOf(["設備", "機台", "機台名稱", "服務"], 8);
-  const COL_STATUS = idxOf(["訂單狀態", "狀態"], 38);
-  const COL_PAY = idxOf(["付款方式", "支付方式"], 16);
-  const COL_AMT = idxOf(["實付金額", "金額", "支付金額"], 17);
-
-  let totalCount = 0;
-  let totalAmt = 0;
-  let storedAmt = 0;
-  let otherAmt = 0;
-
-  // 依設備統計（設備 + 付款群組）
-  const agg = new Map();
-
-  let skipped = 0;
-
-  for (const r of body) {
-    const iso = excelDateToISO(r[COL_DATE]);
-    if (!iso) { skipped++; continue; }
-    if (iso < start || iso > end) { skipped++; continue; }
-
-    const status = String(r[COL_STATUS] || "").trim();
-    if (status !== "完成") { skipped++; continue; }
-
-    const storeName = String(r[COL_STORE] || "").trim();
-    const isHsinchu = storeName.includes("新竹");
-    const isZhubei = storeName.includes("竹北");
-    if (store === "hsinchu" && !isHsinchu) { skipped++; continue; }
-    if (store === "zhubei" && !isZhubei) { skipped++; continue; }
-
-    const device = String(r[COL_DEVICE] || "").trim() || "未填";
-    const pay = String(r[COL_PAY] || "").trim();
-    const amt = Number(r[COL_AMT]) || 0;
-
-    const group = (pay === "儲值金") ? "儲值金" : "單次/非儲值";
-
-    totalCount += 1;
-    totalAmt += amt;
-    if (group === "儲值金") storedAmt += amt;
-    else otherAmt += amt;
-
-    const key = device + "||" + group;
-    if (!agg.has(key)) agg.set(key, { device, group, count: 0, amt: 0 });
-    const x = agg.get(key);
-    x.count += 1;
-    x.amt += amt;
+  try {
+    const { header, body } = await parseExcelFile(file);
+    const indices = getColumnIndices(header);
+    const stats = processData(body, indices, start, end, store);
+    const html = generateHTML(stats);
+    el("result").innerHTML = html;
+  } catch (err) {
+    console.error(err);
+    el("result").innerText = "處理檔案時發生錯誤：" + err.message;
   }
-
-  // 組結果表
-  const rows = Array.from(agg.values()).sort((a, b) => {
-    if (a.device !== b.device) return a.device.localeCompare(b.device, "zh-Hant");
-    return a.group.localeCompare(b.group, "zh-Hant");
-  });
-
-  let html = "";
-  html += `<p>完成筆數：<b>${money(totalCount)}</b>（略過 ${money(skipped)} 筆）</p>`;
-  html += `<p>扣款總額：<b>${money(totalAmt)}</b></p>`;
-  html += `<p>儲值金扣款：<b>${money(storedAmt)}</b>｜單次/非儲值：<b>${money(otherAmt)}</b></p>`;
-  html += `<hr/>`;
-  html += `<table border="1" cellpadding="6" cellspacing="0">
-    <tr><th>設備</th><th>付款群組</th><th>完成筆數</th><th>扣款金額</th></tr>
-    ${rows.map(r => `
-      <tr>
-        <td>${r.device}</td>
-        <td>${r.group}</td>
-        <td>${money(r.count)}</td>
-        <td>${money(r.amt)}</td>
-      </tr>
-    `).join("")}
-  </table>`;
-
-  el("result").innerHTML = html;
 };
 
 // init
