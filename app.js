@@ -1,6 +1,6 @@
-// ====== 你要填的 Supabase 連線資訊（換成你自己的） ======
-const SUPABASE_URL = "https://coedqfdxzykoleerhwdb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZWRxZmR4enlrb2xlZXJod2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMDEzMTUsImV4cCI6MjA4Nzc3NzMxNX0.OZBHVrgUFUvSaHInP-K34_FvGpqAuNvjPabmOk7SouQ";
+// ====== Supabase 連線資訊（從 config.js 讀取） ======
+const SUPABASE_URL = window.ENV.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.ENV.SUPABASE_ANON_KEY;
 
 // ==========================================================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
