@@ -189,3 +189,7 @@ el("importBtn").onclick = async () => {
 // init
 refreshSession();
 sb.auth.onAuthStateChange(() => refreshSession());
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { refreshSession, showApp };
+}
